@@ -1,3 +1,4 @@
+import {parseVariable} from './variable';
 
 export class Node{
     name:string;
@@ -8,12 +9,25 @@ export class Node{
 }
 export class TextNode{
     content:string='';
-    tagName:string='textNode';
+    tagName:string;
+    name:string;
+    bindVar:Array<string>=[];
+    constructor(index:number){
+        this.tagName='textNode';
+        this.name=this.tagName+index;
+    }
 }
 
-export function Parse(html:any){
+export function Parse(html:any,component:any){
     let index:number=0;
-    const main=new Node();
+    const
+    main=new Node(),
+        //variable:{textNode:,element:}
+    varCollection:any={},
+    innerVariable=new parseVariable(),
+    attrVariable=new parseVariable();
+
+
     let
     str='',
     value,
@@ -26,6 +40,11 @@ export function Parse(html:any){
     parent:any=main,
     renderNodes:Array<any>=[],
     textNode:TextNode,
+    attr_key:string='',
+    attr_value:string='',
+    attr_isValue:boolean,
+    attr_quote:string,
+    attr_isRun:boolean,
     nowNode:any;
     const
     createNode=(name:string):Node=>{
@@ -41,40 +60,40 @@ export function Parse(html:any){
         return nowNode;
     },
     createTextNode=()=>{
-        textNode=new TextNode();
+        textNode=new TextNode(++index);
         (renderNodes[renderNodes.length-1]||main).children.push(textNode);
     },
     catchAttr=(value:string)=>{
-        let
-        abbrev:string,
-        val:string,
-        v:string,
-        isAbbrev:boolean=true,
-        valBegin:boolean; //none use!
-        value.split(' ').forEach(str=>{
-            abbrev=val='';
-            isAbbrev=true;
-            for(let i=0,len=str.length;i<len;i++){
-                v=str[i];
-                if(v==='='){
-                    isAbbrev=false;
-                    valBegin=true;
-                    continue;
-                }
-                if(isAbbrev){
-                    abbrev+=v;
-                }else{
-                    val+=v;
-                }
+
+        if(preValue=='='&&(value=='\''||value=='\"')){
+            attr_quote=value;
+            attr_isValue=true;
+            attr_value='';
+            return;
+        }
+        if(!attr_isValue){
+            if(attr_isRun&&value===' '){
+                nowNode.attr[attr_key]=true;
             }
-            nowNode.attr[abbrev]=val?val.slice(1,-1):true;
-        })
+            attr_isRun=value!==' ';
+            if(attr_isRun&&value!='='){
+                attr_key+=value;
+            }
+        }
+        else{
+            if(value==attr_quote){
+                nowNode.attr[attr_key]=attr_value;
+                attr_key=attr_value='';
+                attr_isValue=attr_isRun=false;
+            }else{
+                attr_value+=value;
+            }
+        }
+
+
     },
     endStartTag=()=>{
-        if(name){
-            catchAttr(name);
-        }
-        isTagStart=false;
+        isTagStart=attr_isRun=false;
         isInner=true;
         textNode=null;
     },
@@ -101,13 +120,14 @@ export function Parse(html:any){
                     }else{
                         renderNodes.push(createNode(name));
                     }
-                    name='';
-                    catchTag=false;
+                    attr_isRun=catchTag=false;
+                    name=attr_key=attr_value='';
                     if(v==='>')endStartTag();
                 }else if(v==='>'){
                     endStartTag();
                 }else{
-                    name+=v;
+                    //catchAttr:
+                    catchTag?(name+=v):catchAttr(v);
                 }
                 return true;
             }
@@ -117,6 +137,15 @@ export function Parse(html:any){
     checkInner=(v:string)=>{
         if(isInner&&v!=='<'&&v!=' '&&v!='\n'){
             if(!textNode)createTextNode();
+            innerVariable.parse(v,(name:string)=>{
+                if(!varCollection[name])varCollection[name]={
+                    textNode:[],
+                    element:[]
+                };
+                const textArr=varCollection[name]['textNode'];
+                if(textArr.indexOf(textNode)==-1)textArr.push(textNode);
+                if(textNode.bindVar.indexOf(name)==-1) textNode.bindVar.push(name);
+            });
             textNode.content+=v;
             return true;
         }
@@ -146,5 +175,8 @@ export function Parse(html:any){
         checkTagEnd(value);
         preValue=value;
     }
-    return main;
+    return {
+        nodeMsn:main,
+        varCollection:varCollection
+    };
 }
