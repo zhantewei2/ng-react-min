@@ -67,7 +67,7 @@ export function Parse(html:any){
                     val+=v;
                 }
             }
-            nowNode.attr[abbrev]=val.slice(1,-1);
+            nowNode.attr[abbrev]=val?val.slice(1,-1):true;
         })
     },
     endStartTag=()=>{
@@ -146,5 +146,5 @@ export function Parse(html:any){
         checkTagEnd(value);
         preValue=value;
     }
-    console.log(main)
+    return main;
 }
